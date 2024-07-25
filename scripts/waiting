@@ -1,0 +1,6 @@
+running=$(ps -ef | grep toruncuxo|grep -v grep)
+while [ ! "$running" = "" ]
+do sleep 1200
+running=$(ps -ef | grep toruncuxo|grep -v grep)
+done
+nohup ./toruncuxo &

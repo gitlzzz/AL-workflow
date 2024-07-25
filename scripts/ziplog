@@ -1,0 +1,11 @@
+#!/bin/bash    
+#SBATCH --qos=class_a   
+#SBATCH --time=06:59:00   
+#SBATCH --job-name=ziplog
+#SBATCH --cpus-per-task=48  
+#SBATCH --tasks-per-node=1  
+#SBATCH --ntasks=1  
+#SBATCH --output=o_MD.%j 
+#SBATCH --error=e_MD.%j 
+
+for x in {104..108};do pbzip2 $x/mode1/*/log.lammps; pbzip2 $x/mode1/*/structure.lammpstrj;pbzip2 $x/input.data-new;rm $x/mode2/comp.data;done

@@ -1,0 +1,64 @@
+#! /bin/bash
+rm -rf mode1  mode1.count mode2 input.data-* input.add*DFT joblist*
+module load gcc/8.1.0 impi/2018.1 mkl/2018.1 opencv/4.1.2 python/3.6.4_ML
+python3 ./RuNNerActiveLearn.py 
+#./run_mode1.sh
+rm e_MD.* o_MD.*
+
+Ermse=$(head -n 4 train.sum|tail -1|awk '{ print $1 }')
+Ethres=$(bc <<< "scale=5; $Ermse/27.211386245988*5")
+Frmse=$(head -n 4 train.sum|tail -1|awk '{ print $3 }')
+Fthres=$(bc <<< "scale=5; $Frmse/27.211386245988*5")
+
+sed -i "s/delta_E =.*/delta_E = [0$Ethres,0$Ethres]/g" RuNNerActiveLearn.py
+sed -i "s/delta_F =.*/delta_F = [0$Fthres,0$Fthres]/g" RuNNerActiveLearn.py
+
+if [ -f joblist_mode1_2.dat ];then 
+	for x in joblist_mode1_*
+	do 
+		cp job.mode1 job.mode1_${x%%.dat}
+		num_jobs=$(cat $x |wc|awk '{ print $1 }')
+		sed -i "s/--array=1.*/--array=1-$num_jobs/g" job.mode1_${x%%.dat}
+		sed -i "s/joblist_mode1_1.dat/$x/g" job.mode1_${x%%.dat} 
+		ninqueue=$(squeue|grep iciq7258|wc|awk '{ print $1 }')
+		couldsub=$((366-$ninqueue))
+		checklist=$(squeue|awk '{ print $1 }'|grep "\["|wc|awk '{ print $1 }')
+		while [ $couldsub -lt $num_jobs ] || [[ ! $checklist = 0 ]]
+		do
+		        echo "has $checklist queue jobs, otherwise could sub $couldsub jobs, need $num_jobs nodes for mode1, checking and waiting"
+       			sleep 300
+		        ninqueue=$(squeue|grep iciq7258|wc|awk '{ print $1 }')
+		        couldsub=$((366-$ninqueue))
+			checklist=$(squeue|awk '{ print $1 }'|grep "\["|wc|awk '{ print $1 }')
+		done
+		sbatch job.mode1_${x%%.dat}
+		echo "################# mode1 ${x%%.dat} lammps jobs submitted #################"
+	done
+else
+	num_jobs=$(ls mode1/ |wc|awk '{ print $1 }')
+	sed -i "s/--array=1.*/--array=1-$num_jobs/g" job.mode1
+        ninqueue=$(squeue|grep iciq7258|wc|awk '{ print $1 }')
+	couldsub=$((366-$ninqueue))
+	checklist=$(squeue|awk '{ print $1 }'|grep "\["|wc|awk '{ print $1 }')
+	while [ $couldsub -lt $num_jobs ] || [[ ! $checklist = 0 ]]
+	do
+		echo "has $checklist queue jobs, otherwise could sub $couldsub jobs, need $num_jobs nodes for mode1, checking and waiting"
+		sleep 300
+		ninqueue=$(squeue|grep iciq7258|wc|awk '{ print $1 }')
+		couldsub=$((366-$ninqueue))
+		checklist=$(squeue|awk '{ print $1 }'|grep "\["|wc|awk '{ print $1 }')
+	done
+	sbatch job.mode1
+fi
+echo "################# mode1 lammps jobs submitted #################"
+
+check=$(squeue|grep n2p2|wc|awk '{ print $1 }')
+while [[ ! $check = 0 ]]; do sleep 300;echo "mode1 is running, checking every 300s"; check=$(squeue|grep n2p2|wc|awk '{ print $1 }'); done
+rm mode1.count
+for x in mode1/*/;do echo $x >> mode1.count ;cat $x/extrapolation.dat >> mode1.count;echo "    " >> mode1.count;done
+
+#./run_mode2.sh
+sbatch job.mode2
+echo "################# mode2 comp2 jobs submitted #################"
+check=$(squeue|grep n2p2|wc|awk '{ print $1 }')
+while [[ ! $check = 0 ]]; do sleep 300;echo "mode2 is running, checking every 300s";check=$(squeue|grep n2p2|wc|awk '{ print $1 }'); done

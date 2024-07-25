@@ -1,0 +1,36 @@
+#!/bin/bash
+#!/bin/bash    
+#SBATCH --qos=class_a   
+#SBATCH --time=2:59:00   
+#SBATCH --job-name=n2p2  
+#SBATCH --cpus-per-task=1
+#SBATCH --tasks-per-node=48 
+#SBATCH --ntasks=48
+#SBATCH --output=o_mode1.%A_%a 
+#SBATCH --error=e_mode1.%A_%a
+#SBATCH --array=1-44
+
+path=$(sed -n ${SLURM_ARRAY_TASK_ID}p ${SLURM_SUBMIT_DIR}/joblist_mode1_1.dat)
+
+ulimit -s unlimited
+module load impi mkl intel gsl/2.7 n2p2/2.1.4-lammps-29Sept2021
+
+cd ${SLURM_SUBMIT_DIR}/mode1/${path}
+#sed -i '7i box tilt large'  input.lammps
+#sed -i 's/resetew no/resetew yes/g' input.lammps
+sed -i 's/v_thermo step time temp epair etotal fmax fnorm press cella cellb cellc cellalpha cellbeta cellgamma density/v_thermo step time temp density/g' input.lammps
+sed -i 's/thermo %8d %10.4f %8.3f %15.5f %15.5f %9.4f %9.4f %9.2f %9.5f %9.5f %9.5f %9.5f %9.5f %9.5f %8.5f/thermo %8d %10.4f %8.1f %8.3f/g' input.lammps
+if [ ${path%%_*} = "cuxosurf" ];then
+        sed -i 's/npt/nvt/g' input.lammps
+        sed -i 's/tri ${pressure} ${pressure} 3.0 fixedpoint 0.0 0.0 0.0/ /g' input.lammps
+	sed -i 's/density//g' input.lammps
+        sed -i 's/%8.3f//g' input.lammps
+fi
+mpirun -np ${SLURM_NTASKS} lmp_mpi -in input.lammps
+rm ${SLURM_SUBMIT_DIR}/o_mode1.${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID} 
+mv ${SLURM_SUBMIT_DIR}/e_mode1.${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}  ${SLURM_SUBMIT_DIR}/mode1/${path}
+
+module load gcc/8.1.0 impi/2018.1 mkl/2018.1 opencv/4.1.2 python/3.6.4_ML
+python3 ${SLURM_SUBMIT_DIR}/RuNNerActiveLearn.py 1a
+
+#bzip2 log.lammps

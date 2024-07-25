@@ -1,0 +1,25 @@
+#!/bin/bash
+#!/bin/bash    
+#SBATCH --qos=class_a   
+#SBATCH --time=02:60:00   
+#SBATCH --job-name=n2p2  
+#SBATCH --cpus-per-task=1
+#SBATCH --tasks-per-node=48 
+#SBATCH --ntasks=48
+#SBATCH --output=o_MD.%j 
+#SBATCH --error=e_MD.%j
+
+ulimit -s unlimited
+#module load impi mkl intel gsl/2.7 n2p2/2.1.4-lammps-29Sept2021
+#export OMP_NUM_THREADS=48
+
+cd ${SLURM_SUBMIT_DIR}
+rm -rf mode2* input.data-*
+#module load gcc/8.1.0 impi/2018.1 mkl/2018.1 opencv/4.1.2 python/3.6.4_ML intel gsl/2.7 impi/2017.4 n2p2/2.1.4-lammps-29Sept2021
+#module load gcc/8.1.0 opencv/4.1.2 python/3.6.4_ML intel gsl/2.7 mkl/2017.4 impi/2017.4 n2p2/2.1.4-lammps-29Sept2021
+module load gcc/8.1.0 impi/2018.1 mkl/2018.1 opencv/4.1.2 python/3.6.4_ML 
+python3 ./RuNNerActiveLearn.py 2   > mode2.out  2>&1 
+cp mode2/comp-selection.data ./input.data-add
+#module load gcc/8.1.0 impi/2018.1 mkl/2018.1 opencv/4.1.2 python/3.6.4_ML
+#python3 ${SLURM_SUBMIT_DIR}/RuNNerActiveLearn.py 1a
+#bzip2 mode1/*/log.lammps

@@ -1,0 +1,204 @@
+#!/bin/bash    
+#SBATCH --qos=class_a   
+#SBATCH --time=02:59:00   
+#SBATCH --job-name=CuOsta  
+#SBATCH --cpus-per-task=1  
+#SBATCH --tasks-per-node=48  
+#SBATCH --ntasks=48   
+#SBATCH --output=o_CuOsta.%j 
+#SBATCH --error=e_CuOsta.%j 
+   
+module load vasp/5.4.4 
+module load gcc/8.1.0 impi/2018.1 mkl/2018.1 opencv/4.1.2 python/3.6.4_ML mkl ase
+###########center poscar generate KPOINTS potcar##############
+movetocenter.py
+(echo 102; echo 2; echo 0.03)|vaspkit
+checkvaccum.py
+#checkvaccumnoerror.py
+pos2pot.py
+vdw POSCAR
+if [ -f POSCARerrorinz ] || [ -f POSCARerrorinangle ];then
+        rm INCAR POTCAR KPOINTS
+        echo "find POSCAR error"
+fi
+######modify for dipole#####
+Ka=$(head -n 4 KPOINTS |tail -n 1|awk '{ print $1 }')
+Kb=$(head -n 4 KPOINTS |tail -n 1|awk '{ print $2 }')
+Kz=$(head -n 4 KPOINTS |tail -n 1|awk '{ print $3 }')
+if [[ $Ka = 1 ]];then
+        alenth=$(head -n 3 POSCAR |tail -n 1|awk '{ print $1 }')
+        lessthan17=`echo "$alenth < 17" | bc`
+        if [[ $lessthan17 -eq 1 ]];then
+                touch errorbyc
+                rm  INCAR POTCAR KPOINTS
+        fi
+fi
+if [[ $Kb = 1 ]];then
+        blenth=$(head -n 4 POSCAR |tail -n 1|awk '{ print $2 }')
+        lessthan17=`echo "$blenth < 17" | bc`
+        if [[ $lessthan17 -eq 1 ]];then
+                touch errorbyc
+                rm  INCAR POTCAR KPOINTS
+        fi
+fi
+if [[ $Kz = 1 ]];then 
+	zlenth=$(head -n 5 POSCAR |tail -n 1|awk '{ print $3 }')
+	lessthan17=`echo "$zlenth < 17" | bc`
+	if [[ $lessthan17 -eq 1 ]];then
+		touch errorbyc
+		rm  INCAR POTCAR KPOINTS
+	fi
+fi
+
+if [[ -f vaccumalongx ]];then
+        sed -i 's/# LDIPOL =   T/LDIPOL =   T/g' INCAR
+        sed -i 's/# IDIPOL =   3/IDIPOL =   1/g' INCAR
+fi
+if [[ -f vaccumalongy ]];then
+        sed -i 's/# LDIPOL =   T/LDIPOL =   T/g' INCAR
+        sed -i 's/# IDIPOL =   3/IDIPOL =   2/g' INCAR
+fi
+if [[ -f vaccumalongz ]];then
+        sed -i 's/# LDIPOL =   T/LDIPOL =   T/g' INCAR
+        sed -i 's/# IDIPOL =   3/IDIPOL =   3/g' INCAR
+fi
+if [[ -f vaccumalongxyz ]];then
+        sed -i 's/# LDIPOL =   T/LDIPOL =   T/g' INCAR
+        sed -i 's/# IDIPOL =   3/IDIPOL =   4/g' INCAR
+        #sed -i 's/# DIPOL  =   0.5 0.5 0.5/DIPOL  =   0.5 0.5 0.5/g' INCAR
+fi
+
+###########################
+
+NUMBERS=(`\ls | grep -i "OUTCAR" | cut -f2 -d'.' -s`)
+ENTRIES=`echo $NUMBERS | wc -w`
+if [ "$ENTRIES" -eq 0 ] 
+then 
+  NUMBERS[0]=$((0))
+fi
+length=$((${#NUMBERS[@]}-1))
+COUNTER=${NUMBERS["$length"]}
+
+srun  /apps/VASP/5.4.4/INTEL/IMPI/bin/vasp_std
+COUNTER=$((COUNTER+1))
+
+if [ -f OUTCAR ] 
+then
+   mv OUTCAR OUTCAR.$COUNTER
+   one-o2r.sh OUTCAR.$COUNTER
+   al-deleteunconverged.sh OUTCAR.${COUNTER}.data 100
+   delethead.sh OUTCAR.${COUNTER}.data-deleunconverged
+   cp OUTCAR.${COUNTER}.data-deleunconverged OUTCAR.1.data-deleunconverged
+   if [[ -f vaccumalongx ]] || [[ -f vaccumalongy ]] || [[ -f vaccumalongz ]];then
+	   sed -i 's/singlepoint/cuxosurf/g' OUTCAR.${COUNTER}.data-deleunconverged
+   else
+	   sed -i 's/singlepoint/cuxobulk/g' OUTCAR.${COUNTER}.data-deleunconverged
+   fi
+   pbzip2 OUTCAR.$COUNTER
+fi 
+
+if [ -f OSZICAR ] 
+then
+   energy=$(grep -a F OSZICAR | awk '{ print $5 }'|awk '{printf("%f",$0)}');if [[ `echo "$energy > 0 " | bc` -eq 1 ]];then rm OUTCAR.1.data-deleunconverged;touch errorbyenergy;fi
+   mv OSZICAR OSZICAR.$COUNTER
+   pbzip2 OSZICAR.$COUNTER
+fi 
+
+if [ -f CONTCAR ] 
+then
+   cp CONTCAR CONTCAR.$COUNTER
+   bzip2 CONTCAR.$COUNTER
+fi 
+
+if [ -f DOSCAR ] 
+then
+   mv DOSCAR DOSCAR.$COUNTER
+   bzip2 DOSCAR.$COUNTER
+fi 
+
+if [ -f EIGENVAL ] 
+then
+   mv EIGENVAL EIGENVAL.$COUNTER
+   bzip2 EIGENVAL.$COUNTER
+fi 
+
+if [ -f IBZKPT ] 
+then
+   mv IBZKPT IBZKPT.$COUNTER
+   bzip2 IBZKPT.$COUNTER
+fi 
+
+if [ -f vasprun.xml ] 
+then
+   cp vasprun.xml vasprun.xml.$COUNTER
+   pbzip2 vasprun.xml
+   pbzip2 vasprun.xml.$COUNTER
+fi 
+
+if [ -f XDATCAR ] 
+then
+   mv XDATCAR XDATCAR.$COUNTER
+   bzip2 XDATCAR.$COUNTER
+fi 
+
+if [ -f out ] 
+then
+   mv out out.$COUNTER
+   pbzip2 out.$COUNTER
+fi 
+
+if [ -f AECCAR0 ] 
+then
+   mv AECCAR0 AECCAR0.$COUNTER
+   bzip2 AECCAR0.$COUNTER
+fi 
+
+if [ -f AECCAR2 ] 
+then
+   mv AECCAR2 AECCAR2.$COUNTER
+   bzip2 AECCAR2.$COUNTER
+fi 
+
+if [ -f AECCAR2 ] 
+then
+   mv AECCAR2 AECCAR2.$COUNTER
+   bzip2 AECCAR2.$COUNTER
+fi 
+
+if [ -f ELFCAR ] 
+then
+   mv ELFCAR ELFCAR.$COUNTER
+   bzip2 ELFCAR.$COUNTER
+fi 
+
+if [ -f PROCAR ] 
+then
+   mv PROCAR PROCAR.$COUNTER
+   bzip2 PROCAR.$COUNTER
+fi 
+
+
+if [ -f DYNMAT ] 
+then
+   mv DYNMAT DYNMAT.$COUNTER
+   bzip2 DYNMAT.$COUNTER
+fi 
+
+if [ -f CHGCAR ] 
+then
+   #mv CHGCAR CHGCAR.$COUNTER
+   #bzip2 CHGCAR.$COUNTER
+   rm -f CHGCAR
+fi 
+
+if [ -f WAVECAR ] 
+then
+   rm -f WAVECAR
+fi 
+
+if [ -f CHG ] 
+then
+   rm -f CHG
+fi 
+
+rm unfinished

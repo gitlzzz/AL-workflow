@@ -1,0 +1,15 @@
+#!/bin/bash    
+#SBATCH --qos=class_a   
+#SBATCH --time=06:59:00   
+#SBATCH --job-name=ziplog
+#SBATCH --cpus-per-task=48  
+#SBATCH --tasks-per-node=1  
+#SBATCH --ntasks=1  
+#SBATCH --output=o_subzip.%j 
+#SBATCH --error=e_subzip.%j 
+
+loop=15
+pbzip2 $loop/mode1/*/log.lammps
+pbzip2 $loop/mode1/*/structure.lammpstrj
+pbzip2 $loop/input.data-new
+rm $loop/mode2/comp.data
