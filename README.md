@@ -1,3 +1,3 @@
 # AL-workflow
 
-This is a in-house automated workflow for generating dataset for machine learning potential.
+This is an in-house automated workflow for generating datasets for machine learning potential for n2p2, based on RuNNerActivelearning.
