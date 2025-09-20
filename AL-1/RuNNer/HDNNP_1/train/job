@@ -1,0 +1,24 @@
+#!/bin/bash    
+#SBATCH --qos=class_a   
+#SBATCH --time=00:59:00   
+#SBATCH --job-name=Cutrain
+#SBATCH --cpus-per-task=1  
+#SBATCH --tasks-per-node=48  
+#SBATCH --ntasks=48  
+#SBATCH --output=o_MD.%j 
+#SBATCH --error=e_MD.%j 
+
+module load impi mkl intel gsl/2.7 n2p2/2.1.4-lammps-29Sept2021
+rm o_* e_*
+mpirun -np 48 nnp-scaling 500 >& scaling.out
+#cp weights.029.000010.out weights.029.data
+mpirun -np 48 nnp-train >& train.out
+
+module load gcc/8.1.0 impi/2018.1 mkl/2018.1 opencv/4.1.2 python/3.6.4_ML
+choosebyenergy-n2p2.py
+rm -rf out
+mkdir out;mv nnp-* out;mv sf.0* out;mv weight*.out out
+cp scaling.data input.nn weights.*data ../
+cat pickedweight >> ../../../train.sum
+nnp-dataset 0
+rm forces.comp  train.data trainforces* testforces* test.data train-log.out output.data
